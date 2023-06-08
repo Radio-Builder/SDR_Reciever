@@ -176,13 +176,17 @@ void setup()
   
 // Swap coeffs_60plus45 and  coeffs_60minus45 to change sidebands
 
-  // SSB Filter  
-  filtered.setFilter(0, new FilterChain<float, 2>({new FIR<float>(coeffs_60plus45),new FIR<float>(coeffs_lpf_2205Hz_60_44100)}));
-  filtered.setFilter(1, new FilterChain<float, 2>({new FIR<float>(coeffs_60minus45),new FIR<float>(coeffs_lpf_2205Hz_60_44100)}));
+//  SSB Filter
+//  filtered.setFilter(0, new FIR<float>(SSB_plus45_161_filter));
+//  filtered.setFilter(1, new FIR<float>(SSB_minus45_161_filter));
 
-  // CW Filter
-  //filtered.setFilter(0, new FilterChain<float, 2>({new FIR<float>(coeffs_60plus45),new FIR<float>(BPF_CW)}));
-  //filtered.setFilter(1, new FilterChain<float, 2>({new FIR<float>(coeffs_60minus45),new FIR<float>(BPF_CW)}));
+//  CW Filter
+    filtered.setFilter(0, new FIR<float>(CW_plus45_161_filter));
+    filtered.setFilter(1, new FIR<float>(CW_minus45_161_filter));
+
+//  Filters can be cascaded
+//  filtered.setFilter(1, new FilterChain<float, 2>({new FIR<float>(coeffs_FILTER_1),new FIR<float>(coeffs__FILTER_2)}));
+
   
   // start I2S in
   auto config = in.defaultConfig(RXTX_MODE);
