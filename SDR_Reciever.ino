@@ -16,6 +16,7 @@
 #include "MixerConverter.h"
 #include "coeff.h"
 #include <EEPROM.h>
+#include <EasyButton.h>
 
 
 int eeprom_address = 0;
@@ -34,17 +35,50 @@ FilteredStream<int16_t, float> filteredCW(in, channels);  // Defiles the filter 
 
 StreamCopy copierSSB(in, filteredSSB, 512); 
 StreamCopy copierCW(in, filteredCW, 512); 
+
+#define SSB_FILTER 0
+#define CW_FILTER  1
+
+int filter_select = SSB_FILTER;
   
 //------------------------------- Switches Init ------------------------------//
 #define SW_4_PIN 19
 #define SW_3_PIN 16
 #define SW_2_PIN 4
 
+EasyButton sw4_button(SW_4_PIN); 
+EasyButton sw3_button(SW_3_PIN); 
+EasyButton sw2_button(SW_2_PIN); 
+
+bool saveFrequency = false;
+
+void onSW4_Pressed() {
+  Serial.println("sw4 Button has been pressed!");
+  saveFrequency = true;
+}
+
+void onSW3_Pressed() {
+  Serial.println("sw3 Button has been pressed!");
+  if(filter_select == SSB_FILTER)
+    filter_select = CW_FILTER;
+  else
+    filter_select = SSB_FILTER;    
+}
+
+void onSW2_Pressed(){
+  Serial.println("sw2 Button has been pressed!");  
+}
+
 void setupSwitches(void)
-{
-  pinMode(SW_2_PIN,INPUT);  
-  pinMode(SW_3_PIN,INPUT);  
-  pinMode(SW_4_PIN,INPUT);  
+{ 
+  sw2_button.begin();
+  sw2_button.onPressed(onSW2_Pressed); 
+  
+  sw3_button.begin();
+  sw3_button.onPressed(onSW3_Pressed);  
+
+  sw4_button.begin();
+  sw4_button.onPressed(onSW4_Pressed);  
 }
 
 
@@ -183,34 +217,19 @@ void updateTFT()
 
 void setup()
 {
-   Serial.begin(115200);
-   while(!Serial);
+  Serial.begin(115200);
+  while(!Serial);
  
-// Swap coeffs_60plus45 and  coeffs_60minus45 to change sidebands
+  setupSwitches();
+ 
+// Swap coeffs plus45 and  coeffs minus45 to change sidebands
 
-  // int sw4State = digitalRead(SW_4_PIN);
+  filteredSSB.setFilter(0, new FIR<float>(SSB_plus45_161_filter));   
+  filteredSSB.setFilter(1, new FIR<float>(SSB_minus45_161_filter));
 
-  // if(sw4State == 0){   
-  // //  SSB Filter
-  //     filtered.setFilter(0, new FIR<float>(SSB_plus45_161_filter));   
-  //     filtered.setFilter(1, new FIR<float>(SSB_minus45_161_filter));
-  //     }
-  // else
-  //     {
-  // //  CW Filter
-  //     filtered.setFilter(0, new FIR<float>(CW_plus45_261_filter));
-  //     filtered.setFilter(1, new FIR<float>(CW_minus45_261_filter));
-  //     }
-
-      filteredSSB.setFilter(0, new FIR<float>(SSB_plus45_161_filter));   
-      filteredSSB.setFilter(1, new FIR<float>(SSB_minus45_161_filter));
-
-      filteredCW.setFilter(0, new FIR<float>(CW_plus45_261_filter));
-      filteredCW.setFilter(1, new FIR<float>(CW_minus45_261_filter));
+  filteredCW.setFilter(0, new FIR<float>(CW_plus45_261_filter));
+  filteredCW.setFilter(1, new FIR<float>(CW_minus45_261_filter));
       
-//  Filters can be cascaded
-//  filtered.setFilter(1, new FilterChain<float, 2>({new FIR<float>(coeffs_FILTER_1),new FIR<float>(coeffs__FILTER_2)}));
-
   
   // start I2S in
   auto config = in.defaultConfig(RXTX_MODE);
@@ -248,18 +267,12 @@ void setup()
    
 }
 
-#define SSB_FILTER 0
-#define CW_FILTER  1
+
 
 void loop()
 { 
-static bool encoderChanged = false;
-static int filter_select = SSB_FILTER;
-
  	if (rotaryEncoder.encoderChanged())
 	{
-    encoderChanged = true;
-
     long currentReading = rotaryEncoder.readEncoder();
     long change =  currentReading -lastEncoderReading;
 
@@ -267,38 +280,24 @@ static int filter_select = SSB_FILTER;
 
     clk_1_frequency += change*100;  
 
-    updateTFT();
-    
+    updateTFT();    
     SendFrequency();
-    
   }
 
   if(filter_select == SSB_FILTER)
     copierSSB.copy();
   else
-    copierCW.copy();
-      
+    copierCW.copy();    
 
-  int sw3State = digitalRead(SW_3_PIN);
-
-  if(sw3State == 1){ 
-    if(filter_select == 0)
-      filter_select = CW_FILTER;
-    else
-      filter_select = SSB_FILTER;
-
-    while(digitalRead(SW_3_PIN)==1)    
-      delay(250);
-  }
-            
-  int sw2State = digitalRead(SW_2_PIN);            
-  if(sw2State == 1){  
-    if(encoderChanged !=0){
+  sw2_button.read();
+  sw3_button.read();
+  sw4_button.read();
+           
+  if(saveFrequency==true){
       size_t write_eeprom = EEPROM.writeULong64(0, clk_1_frequency);
       EEPROM.commit();
-      Serial.println("EEProm Write" + String((uint64_t)write_eeprom));
-      encoderChanged = false;
-      }
+      Serial.println("EEprom Write" + String((uint64_t)write_eeprom));
+      saveFrequency=false;
   }
 
   
