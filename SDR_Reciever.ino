@@ -1,7 +1,10 @@
 // A Huge shoutout to https://github.com/thaaraak where I got a lot of the software
 // for FIR Filter design https://www.arc.id.au/FilterDesign.html but vol is low!!
 
+//Use the internal ADC and DAC
+//https://github.com/pschatzmann/arduino-audio-tools/blob/main/examples/examples-stream/streams-adc-i2s/streams-adc-i2s.ino
 
+// For linux "sudo adduser $USER dialout && sudo adduser $USER tty" to make serial port accessable to user
 
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #include <SPI.h>
@@ -18,19 +21,20 @@
 int eeprom_address = 0;
 #define EEPROM_SIZE 8
 
-
-
-
 //------------------------------- Audio I2S Setup  ------------------------------//
 uint16_t sample_rate=44100;
 uint16_t channels = 2;
 uint16_t bits_per_sample = 16;
 I2SStream in;
 
-FilteredStream<int16_t, float> filtered(in, channels);  // Defiles the filter as BaseConverter
-StreamCopy copier(in, filtered, 512);   
 
+// Doubled up on these to allow dynamic change between CW and SSB ( A bit hacky, but works )
+FilteredStream<int16_t, float> filteredSSB(in, channels);  // Defiles the filter as BaseConverter
+FilteredStream<int16_t, float> filteredCW(in, channels);  // Defiles the filter as BaseConverter
 
+StreamCopy copierSSB(in, filteredSSB, 512); 
+StreamCopy copierCW(in, filteredCW, 512); 
+  
 //------------------------------- Switches Init ------------------------------//
 #define SW_4_PIN 19
 #define SW_3_PIN 16
@@ -77,7 +81,7 @@ void setupEncoder(void)
 //------------------------------- Si5351 Init ------------------------------//
 Si5351 si5351(0x60);
 uint64_t clk_1_frequency = 7000000; // 7MHz
-//uint64_t clk_1_frequency = 100000000; // 100MHz
+//uint64_t clk_1_frequency =    198000; // 100MHz
 
 volatile int Even_Divisor = 0;
 volatile int oldEven_Divisor = 0;
@@ -181,59 +185,29 @@ void setup()
 {
    Serial.begin(115200);
    while(!Serial);
-
-
-float a_coefficients[]={0.6911109071490495,-12.428960651421141,105.82172676825645,-566.7574909298548,2139.6924386502233,-6046.837515174089,13256.620837359787,-23052.59554787894,32234.12718041634,-36513.630719371824,33586.62601808179,-25027.596550654514,14996.080345346982,-7127.1175654102835,2627.671350537793,-725.1746398136593,141.0702754655541,-17.262293649280707,1};
-float b_coefficients[]={-1,0,9,0,-36,0,84,0,-126,0,126,0,-84,0,36,0,-9,0,1};
-
-float A[]= {
-1.000000000000000000E0,
--9.375972404244443230E0,
-3.971708140109128320E1,
--1.001001187522016390E2,
-1.662296925448198510E2,
--1.900554862369175040E2,
-1.515135948770001790E2,
--8.316403713801301830E1,
-3.007924141145128070E1,
--6.473543136946850570E0,
-6.295474410568283830E-1
-};
-
-float B[]= {
-6.652499031261185360E-6,
-0.000000000000000000E0,
--3.326249515630594010E-5,
-0.000000000000000000E0,
-6.652499031261188910E-5,
-0.000000000000000000E0,
--6.652499031261188910E-5,
-0.000000000000000000E0,
-3.326249515630594460E-5,
-0.000000000000000000E0,
--6.652499031261185360E-6
-};
-
-//filtered.setFilter(0, new IIR<float>(B, A));
-//filtered.setFilter(1, new IIR<float>(B, A));
-
-
-  
+ 
 // Swap coeffs_60plus45 and  coeffs_60minus45 to change sidebands
 
-  int sw4State = digitalRead(SW_4_PIN);
+  // int sw4State = digitalRead(SW_4_PIN);
 
-  if(sw4State == 0){   
-  //  SSB Filter
-      filtered.setFilter(0, new FIR<float>(SSB_plus45_161_filter));
-      filtered.setFilter(1, new FIR<float>(SSB_minus45_161_filter));
-      }
-  else
-      {
-  //  CW Filter
-      filtered.setFilter(0, new FIR<float>(CW_plus45_261_filter));
-      filtered.setFilter(1, new FIR<float>(CW_minus45_261_filter));
-      }
+  // if(sw4State == 0){   
+  // //  SSB Filter
+  //     filtered.setFilter(0, new FIR<float>(SSB_plus45_161_filter));   
+  //     filtered.setFilter(1, new FIR<float>(SSB_minus45_161_filter));
+  //     }
+  // else
+  //     {
+  // //  CW Filter
+  //     filtered.setFilter(0, new FIR<float>(CW_plus45_261_filter));
+  //     filtered.setFilter(1, new FIR<float>(CW_minus45_261_filter));
+  //     }
+
+      filteredSSB.setFilter(0, new FIR<float>(SSB_plus45_161_filter));   
+      filteredSSB.setFilter(1, new FIR<float>(SSB_minus45_161_filter));
+
+      filteredCW.setFilter(0, new FIR<float>(CW_plus45_261_filter));
+      filteredCW.setFilter(1, new FIR<float>(CW_minus45_261_filter));
+      
 //  Filters can be cascaded
 //  filtered.setFilter(1, new FilterChain<float, 2>({new FIR<float>(coeffs_FILTER_1),new FIR<float>(coeffs__FILTER_2)}));
 
@@ -269,20 +243,18 @@ float B[]= {
 
   updateTFT();
 
-  // EEPROM.begin(EEPROM_SIZE);
-  // size_t write_eeprom = EEPROM.writeULong64(0, clk_1_frequency);
-  // EEPROM.commit();
-  // Serial.println("EEProm Write" + String((uint64_t)write_eeprom));
-
   uint64_t read_eeprom = EEPROM.readLong64(0);
   Serial.println("EEProm Read" + String((uint64_t)read_eeprom));
-
-    
+   
 }
+
+#define SSB_FILTER 0
+#define CW_FILTER  1
 
 void loop()
 { 
 static bool encoderChanged = false;
+static int filter_select = SSB_FILTER;
 
  	if (rotaryEncoder.encoderChanged())
 	{
@@ -301,10 +273,25 @@ static bool encoderChanged = false;
     
   }
 
+  if(filter_select == SSB_FILTER)
+    copierSSB.copy();
+  else
+    copierCW.copy();
+      
 
-  copier.copy();
+  int sw3State = digitalRead(SW_3_PIN);
 
-  int sw2State = digitalRead(SW_2_PIN);
+  if(sw3State == 1){ 
+    if(filter_select == 0)
+      filter_select = CW_FILTER;
+    else
+      filter_select = SSB_FILTER;
+
+    while(digitalRead(SW_3_PIN)==1)    
+      delay(250);
+  }
+            
+  int sw2State = digitalRead(SW_2_PIN);            
   if(sw2State == 1){  
     if(encoderChanged !=0){
       size_t write_eeprom = EEPROM.writeULong64(0, clk_1_frequency);
