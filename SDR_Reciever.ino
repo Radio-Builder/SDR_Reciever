@@ -45,12 +45,19 @@ int filter_select = SSB_FILTER;
 #define SW_4_PIN 19
 #define SW_3_PIN 16
 #define SW_2_PIN 4
+#define SW_ENCODER_PIN 32
 
+EasyButton swEncoder_button(SW_ENCODER_PIN,40,false,true); 
 EasyButton sw4_button(SW_4_PIN); 
 EasyButton sw3_button(SW_3_PIN); 
 EasyButton sw2_button(SW_2_PIN); 
 
 bool saveFrequency = false;
+
+
+void onSWEncoder_Pressed() {
+  Serial.println("Encoder Button has been pressed!");
+}
 
 void onSW4_Pressed() {
   Serial.println("sw4 Button has been pressed!");
@@ -79,6 +86,10 @@ void setupSwitches(void)
 
   sw4_button.begin();
   sw4_button.onPressed(onSW4_Pressed);  
+
+  
+  swEncoder_button.begin();
+  swEncoder_button.onPressed(onSWEncoder_Pressed);
 }
 
 
@@ -94,7 +105,7 @@ void setupDisplay(void)
 //------------------------------- Encoder Init ------------------------------//
 #define ROTARY_ENCODER_A_PIN 34
 #define ROTARY_ENCODER_B_PIN 35
-#define ROTARY_ENCODER_BUTTON_PIN 32
+#define ROTARY_ENCODER_BUTTON_PIN -1
 #define ROTARY_ENCODER_STEPS 4
 #define ROTARY_ENCODER_VCC_PIN -1
 AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
@@ -292,7 +303,9 @@ void loop()
   sw2_button.read();
   sw3_button.read();
   sw4_button.read();
-           
+  swEncoder_button.read();           
+
+  
   if(saveFrequency==true){
       size_t write_eeprom = EEPROM.writeULong64(0, clk_1_frequency);
       EEPROM.commit();
