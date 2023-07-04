@@ -63,8 +63,8 @@ EasyButton sw2_button(SW_2_PIN);
 bool saveFrequency = false;
 
 
-void onSWEncoder_Pressed() {
-  Serial.println("Encoder Button has been pressed!");
+void onSW2_Pressed() {
+  Serial.println("sw2 Button has been pressed!");
 }
 
 void onSW4_Pressed() {
@@ -82,7 +82,7 @@ void onSW3_Pressed() {
 
 uint64_t frequencyChange = 100;
 
-void onSW2_Pressed(){
+void onSWEncoder_Pressed(){
 
      
   if(frequencyChange==10)
@@ -145,6 +145,14 @@ void setupDisplay(void)
   //FQ.updateNeedle(100, 0);
 
   analogMeter();
+
+  tft.drawString("Band",30,110,2);
+  tft.drawString("Filt",80,110,2);
+  tft.drawString("Save",120,110,2);
+  tft.drawRoundRect(25,110,39,15, 3, TFT_BLACK);
+  tft.drawRoundRect(70,110,39,15, 3, TFT_BLACK);
+  tft.drawRoundRect(115,110,39,15, 3, TFT_BLACK);
+  
 }
 
 //------------------------------- Encoder Init ------------------------------//
@@ -276,20 +284,20 @@ void updateTFT()
   String freqChange; // = "f Delta : " + String(frequencyChange);
   //tft.drawString(freqChange,10,50,2);
 
-if(frequencyChange==10)
-    freqChange = "_____^___";    
+  if(frequencyChange==10)
+    freqChange = "10Hz   ";    
   else if(frequencyChange==100)
-    freqChange = "____^____";    
+    freqChange = "100Hz  ";    
   else if(frequencyChange==1000)
-    freqChange = "___^_____";    
+    freqChange = "1KHz   ";    
   else if(frequencyChange==10000)
-    freqChange = "__^______";    
+    freqChange = "10KHz  ";    
   else if(frequencyChange==100000)
-    freqChange = "_^_______";    
+    freqChange = "100KHz ";    
   else if(frequencyChange==1000000)
-    freqChange = "^________";    
+    freqChange = "1MHz   ";    
   
- // tft.drawString(freqChange,60,50,2);
+  tft.drawString("Tune "+freqChange,10,90,2);
     //FQ.updateNeedle(100, 0);
 }
 
@@ -340,9 +348,11 @@ void setup()
 
  // updateTFT();
 
- long unsigned int value =  ((clk_1_frequency -7000000)*100)/200000;   
-    plotNeedle((int)value, 0);
-    tft.drawCentreString(String(clk_1_frequency), M_SIZE*120, M_SIZE*75, 2); // Comment out to avoid font 4
+  long unsigned int value =  ((clk_1_frequency -7000000)*100)/200000;   
+  plotNeedle((int)value, 0);
+  tft.drawCentreString(" "+String(clk_1_frequency)+" ", M_SIZE*120, M_SIZE*75, 2); // Comment out to avoid font 4
+
+  updateTFT();
 
   uint64_t read_eeprom = EEPROM.readLong64(0);
   Serial.println("EEProm Read" + String((uint64_t)read_eeprom));
